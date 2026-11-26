@@ -1,0 +1,9 @@
+dist
+coverage
+.artifacts
+.tmp
+node_modules
+package-lock.json
+docs/screenshots
+src/core/foxglove/schemas.json
+*.mcap
