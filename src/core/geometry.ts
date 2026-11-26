@@ -56,7 +56,7 @@ export interface Primitive {
 export const MATERIAL_COLORS: Record<MaterialName, { r: number; g: number; b: number; a: number }> = {
   deck: rgb(0x2a3036),
   anodized: rgb(0x3a4149),
-  aluminium: rgb(0xb5bdc6),
+  aluminium: rgb(0xaab4be),
   steel: rgb(0xd5dade),
   ptfe: rgb(0xe9e7e1),
   copper: rgb(0xb87333),
@@ -75,9 +75,12 @@ function rgb(hex: number) {
 
 const v = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 
+/** Cross-section of the aluminium extrusions of the frame, mm. */
+const PROFILE = 15;
+
 export function machineGeometry(m: MachineConfig): Primitive[] {
   const deckTop = -m.deck.gridPlaneHeight;
-  const railZ = 110; // rail centre height
+  const railZ = 112; // rail centre height
   const parts: Primitive[] = [];
   const box = (
     id: string,
@@ -119,12 +122,12 @@ export function machineGeometry(m: MachineConfig): Primitive[] {
     cyl(`foot-${x}-${y}`, 'world', v(x, y, deckTop - 14), 14, 8, 'rubber');
   }
   for (const x of [-30, 150]) {
-    box(`rail-${x}`, 'world', v(x, 55, railZ), v(20, 130, 20), 'aluminium');
+    box(`rail-${x}`, 'world', v(x, 55, railZ), v(PROFILE, 130, PROFILE), 'aluminium');
     for (const y of [-5, 115]) {
-      const h = railZ - 10 - deckTop;
-      box(`post-${x}-${y}`, 'world', v(x, y, deckTop + h / 2), v(20, 20, h), 'aluminium');
+      const h = railZ - PROFILE / 2 - deckTop;
+      box(`post-${x}-${y}`, 'world', v(x, y, deckTop + h / 2), v(PROFILE, PROFILE, h), 'aluminium');
     }
-    box(`y-motor-${x}`, 'world', v(x, 128, railZ), v(22, 6, 22), 'anodized');
+    box(`y-motor-${x}`, 'world', v(x, 126, railZ), v(20, 6, 20), 'anodized');
   }
 
   // ── Cryo-stage with grid holder (world) ──────────────────────────
@@ -167,18 +170,20 @@ export function machineGeometry(m: MachineConfig): Primitive[] {
   );
 
   // ── Bridge (gantry_y): spans X, rides on the two Y rails ─────────
+  const railTop = railZ + PROFILE / 2;
   for (const x of [-30, 150])
-    box(`bridge-bearing-${x}`, 'gantry_y', v(x, 35, railZ + 13), v(26, 28, 6), 'anodized');
-  box('bridge', 'gantry_y', v(60, 35, railZ + 26), v(200, 20, 20), 'aluminium');
-  box('x-motor', 'gantry_y', v(166, 35, railZ + 26), v(14, 22, 22), 'anodized');
+    box(`bridge-bearing-${x}`, 'gantry_y', v(x, 35, railTop + 2.5), v(22, 24, 5), 'anodized');
+  box('bridge', 'gantry_y', v(60, 35, railTop + 13), v(200, 16, 16), 'aluminium');
+  box('x-motor', 'gantry_y', v(165, 35, railTop + 13), v(12, 20, 20), 'anodized');
 
   // ── X carriage (carriage_x) ──────────────────────────────────────
-  box('carriage', 'carriage_x', v(0, 22, 125), v(44, 6, 50), 'anodized');
-  box('z-guide', 'carriage_x', v(0, 18.5, 125), v(10, 1, 50), 'steel');
+  box('carriage', 'carriage_x', v(0, 24, 125), v(44, 6, 50), 'anodized');
+  box('z-guide', 'carriage_x', v(0, 20.5, 125), v(10, 1, 50), 'steel');
 
   // ── Dispensing head (head_z, origin = needle tip) ────────────────
-  box('slide-plate', 'head_z', v(0, 17, 60), v(34, 3, 100), 'aluminium');
-  box('pump-body', 'head_z', v(0, 11, 52), v(24, 9, 64), 'anodized');
+  box('slide-plate', 'head_z', v(0, 18.5, 60), v(34, 3, 100), 'aluminium');
+  box('pump-body', 'head_z', v(0, 12.5, 52), v(24, 9, 64), 'anodized');
+  box('syringe-clamp', 'head_z', v(0, 6.3, 40), v(12, 3.6, 6), 'anodized');
   cyl('needle', 'head_z', v(0, 0, 8), 0.7, 16, 'steel');
   cyl('luer', 'head_z', v(0, 0, 18), 3, 4, 'steel');
   cyl('syringe', 'head_z', v(0, 0, 39), 9, 38, 'glass', 'z', 'syringe');
