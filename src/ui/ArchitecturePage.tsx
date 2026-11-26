@@ -113,7 +113,7 @@ function ArchitectureDiagram() {
         y={150}
         w={212}
         title="gantry_driver"
-        sub="trapezoids, 1 kHz servo"
+        sub="S-curve + 1 kHz cascade"
         mirror="ROS 2: action server"
       />
       <Box x={530} y={150} w={190} title="pump_driver" sub="aspirate, dispense" mirror="ROS 2: services" />
@@ -318,6 +318,11 @@ export function ArchitecturePage() {
               <li>
                 <strong>Deterministic simulation.</strong> A fixed 10 ms tick, a fixed node order and seeded
                 noise (integer PRNG, no transcendental functions) give bit-identical runs for the same seed.
+              </li>
+              <li>
+                <strong>Jerk-limited motion, cascaded control.</strong> Moves are coordinated S-curve profiles
+                (bounded velocity, acceleration and jerk); each axis runs a P/PI cascade with velocity and
+                acceleration feed-forward and anti-windup, over a first-order current loop.
               </li>
               <li>
                 <strong>Validate twice.</strong> The validator catches mistakes before anything moves; the

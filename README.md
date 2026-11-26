@@ -31,7 +31,7 @@ Everything runs client-side: no backend, nothing leaves the browser.
 | **ROS 2-style node and topic design**                     | Simulated nodes (`gantry_driver`, `pump_driver`, `stage_controller`, `protocol_executor`) talk over typed topics with action-style goals for motion and service calls for the pump and stage, all in simulation time. See [`src/core/nodes`](src/core/nodes) and the in-app page _How it maps to ROS 2_.                                                                                                                                                                        |
 | **Recording and replaying runs with MCAP and a 3D model** | Every run is recorded. _Download recording (.mcap)_ writes JSON channels with JSON Schemas, the protocol as an attachment and run metadata. _Open recording_ replays it with a scrubber. The file also carries `/tf`, `/scene` and `/log` (validated against Foxglove's official schemas), so Foxglove's 3D panel can show the moving gantry. Checked by a round-trip test, an indexed-reader test, the official **Python** `mcap` reader in CI, and a browser end-to-end test. |
 | **Tools that let scientists write and check protocols**   | A YAML editor with live validation: unknown steps and fields (with "did you mean"), types and ranges, axis, speed, volume and temperature limits, ordering ("home before moving", "stage cold before dispensing") and physical warnings (fast approach, off-grid dispense). Every message says what is wrong and how to fix it, and points at the exact token.                                                                                                                  |
-| **Reproducible builds, containers and automated tests**   | A pinned toolchain (`.nvmrc`, `package-lock.json`, `npm ci`) and a multi-stage `Dockerfile` (lint, test, build, then an unprivileged nginx). CI runs lint, 73 unit tests, the build, an MCAP interop check against Python and a Docker smoke test. The simulator is bit-for-bit deterministic for a given seed.                                                                                                                                                                 |
+| **Reproducible builds, containers and automated tests**   | A pinned toolchain (`.nvmrc`, `package-lock.json`, `npm ci`) and a multi-stage `Dockerfile` (lint, test, build, then an unprivileged nginx). CI runs lint, 85 unit tests, the build, an MCAP interop check against Python and a Docker smoke test. The simulator is bit-for-bit deterministic for a given seed.                                                                                                                                                                 |
 | **Code review and documentation**                         | Strict TypeScript, type-aware ESLint with an enforced architecture boundary (`src/core` cannot import React, three.js or DOM APIs), small commits, this README and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) with the design decisions and trade-offs.                                                                                                                                                                                                                     |
 
 ## Try it in 60 seconds
@@ -46,7 +46,7 @@ Everything runs client-side: no backend, nothing leaves the browser.
 flowchart LR
   P[Protocol YAML] --> V[Validator<br/>fields, limits, dry run]
   V -->|valid| E[protocol_executor<br/>action client]
-  E -->|action /gantry/move| G[gantry_driver<br/>trapezoids, 1 kHz servo]
+  E -->|action /gantry/move| G[gantry_driver<br/>S-curve, 1 kHz cascade]
   E -->|service| PU[pump_driver]
   E -->|service| S[stage_controller]
   G --> T[(Topics<br/>sim time)]
@@ -140,15 +140,15 @@ npm ci
 npm run dev                 # http://localhost:5173
 ```
 
-| Command                                         | What it does                                                                                                                                                         |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint`                                  | ESLint (strict, type-aware) and Prettier check                                                                                                                       |
-| `npm test`                                      | 73 unit tests: validator (every error class), trapezoid profiles, simulator determinism and behaviour, MCAP round trip, indexed reading, Foxglove schema conformance |
-| `npm run build`                                 | type-check, then a production build in `dist/`                                                                                                                       |
-| `npm run e2e`                                   | browser end-to-end: demo run, download .mcap, open it, replay and scrub (needs `npm run dev` and a local Chrome or Edge)                                             |
-| `npm run screenshots`                           | regenerate `docs/screenshots/`                                                                                                                                       |
-| `node scripts/export-sample.ts series out.mcap` | run an example headless with the same core and write an MCAP file                                                                                                    |
-| `python scripts/verify_mcap.py out.mcap`        | verify that file with the official Python reader (`pip install -r scripts/requirements.txt`)                                                                         |
+| Command                                         | What it does                                                                                                                                                                     |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint`                                  | ESLint (strict, type-aware) and Prettier check                                                                                                                                   |
+| `npm test`                                      | 85 unit tests: validator (every error class), S-curve and trapezoid profiles, simulator determinism and behaviour, MCAP round trip, indexed reading, Foxglove schema conformance |
+| `npm run build`                                 | type-check, then a production build in `dist/`                                                                                                                                   |
+| `npm run e2e`                                   | browser end-to-end: demo run, download .mcap, open it, replay and scrub (needs `npm run dev` and a local Chrome or Edge)                                                         |
+| `npm run screenshots`                           | regenerate `docs/screenshots/`                                                                                                                                                   |
+| `node scripts/export-sample.ts series out.mcap` | run an example headless with the same core and write an MCAP file                                                                                                                |
+| `python scripts/verify_mcap.py out.mcap`        | verify that file with the official Python reader (`pip install -r scripts/requirements.txt`)                                                                                     |
 
 ## Docker
 
@@ -166,7 +166,7 @@ The build stage pins Node, installs the exact lockfile with `npm ci`, and runs l
 
 ## Limitations
 
-- The physics is a deliberately small model: velocity feed-forward plus a proportional position loop and a first-order drive lag at 1 kHz, with an exponential cooling curve. Time constants are compressed for the demo; a real cryo-stage takes minutes, not seconds.
+- The physics is a deliberately small model: jerk-limited S-curve motion and a cascaded P/PI servo with feed-forward at 1 kHz, plus an exponential cooling curve. Time constants are compressed for the demo; a real cryo-stage takes minutes, not seconds.
 - Droplets are drawn 10× their true size so a few nanolitres are visible.
 - Recordings use JSON with uncompressed chunks (about 1.4 MB for the 15 s demo), which keeps them readable and easy to decode in the browser.
 - Replay reads JSON-encoded MCAP. ROS 2 bags with CDR-encoded messages are listed in the roadmap.
@@ -180,7 +180,7 @@ These are next steps; none of them exist yet.
 3. **Foxglove bridge:** connect the web view to a live robot through the `foxglove_bridge` WebSocket.
 4. **URDF export:** generate URDF/xacro from the machine description in `src/core/geometry.ts`.
 5. **Camera node:** publish the tip camera as `sensor_msgs/CompressedImage`.
-6. **Motion:** S-curve (jerk-limited) profiles, and fault injection such as a stalled axis or a pump occlusion.
+6. **Motion:** input shaping to cancel residual vibration, and fault injection such as a stalled axis or a pump occlusion.
 
 ## License
 

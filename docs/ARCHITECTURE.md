@@ -47,13 +47,13 @@ Noise comes from per-node streams of a seeded mulberry32 generator. Gaussian noi
 
 - **Tested by:** the same seed gives identical message streams; different seeds change only the measured positions, never the commanded trajectory; and two exports of the same run are byte-identical.
 
-### 3. Motion: coordinated trapezoids and a simple servo model
+### 3. Motion: jerk-limited S-curves and a cascaded servo
 
-A `move` is a straight line of the needle tip. One trapezoidal profile runs along the path, with its velocity and acceleration limits set to the tightest per-axis limits projected onto the direction of travel (`v ≤ vmax_i / |u_i|`). Every axis therefore follows a scaled trapezoid, none exceeds its own limits, and all of them arrive together. That matters for a dispensing tip, which should travel predictably near the grid. If an axis caps the requested speed, the validator warns.
+A `move` is a straight line of the needle tip. One jerk-limited **S-curve** (double-S, 7 phases) runs along the path, with its velocity, acceleration and jerk limits set to the tightest per-axis limits projected onto the direction of travel (`v ≤ vmax_i / |u_i|`, likewise for `a` and `j`). Every axis therefore follows a scaled S-curve, none exceeds its own limits, and all of them arrive together. Bounding jerk makes the command twice differentiable, which is gentler on the hardware and avoids exciting structural vibration — exactly why real motion controllers use S-curves. If an axis caps the requested speed, the validator warns. The plain trapezoid is kept as a tested reference building block (`trajectory.ts`); the S-curve reduces to it as jerk → ∞.
 
-Each axis is modelled as velocity feed-forward plus a proportional position loop (Kp = 120 s⁻¹) driving a first-order drive lag (τ = 8 ms), integrated at 1 kHz. That gives realistic following error: tens of µm while accelerating, a damped transient at each change of acceleration, and close to zero at constant velocity. A move counts as finished once every axis is within 2 µm of its command, like an "in position" window.
+Each axis runs an explicit **cascade** (`nodes/gantry.ts`): a P position loop feeds a PI velocity loop (with an anti-windup clamp on the integrator); velocity and acceleration feed-forward from the trajectory cancel most of the motion, and a first-order current loop (τ ≈ 4.5 ms) keeps acceleration from changing instantly. The feed-forward does the bulk of the work while the loops reject the modelled lag, so the following error is a realistic few tens of µm during jerk and acceleration and close to zero at constant velocity. A move finishes once every axis is within the in-position window (3 µm) and nearly stopped. The control loop acts on the true state; encoder noise is added only to the _published_ measurement, so runs stay deterministic per seed while the measured position still shows sensor noise.
 
-- **Alternatives:** independent per-axis point-to-point moves (curved paths, simpler) or S-curve profiles (no acceleration steps). S-curves are on the roadmap; the acceleration steps of a trapezoid make the servo response easy to see in the tracking-error chart.
+- **Alternatives:** independent per-axis point-to-point moves (curved paths, simpler), or a single global controller instead of a cascade (less like real servo drives, which are built as nested position/velocity/current loops).
 
 ### 4. Validator: two phases, exact spans, and checks again at run time
 
@@ -91,15 +91,15 @@ The three Foxglove JSON schemas used are vendored (about 25 kB instead of the pa
 
 ## Testing strategy
 
-| Layer     | How                                                                                                                                                                         |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Validator | One test per error class, each warning in isolation, exact spans in flow and block YAML, did-you-mean suggestions, no cascading errors                                      |
-| Planner   | Reaches the target exactly; respects velocity and acceleration limits (sampled finely); triangular case; continuity at phase boundaries; per-axis caps on coordinated moves |
-| Simulator | Determinism; exact pump bookkeeping; cooling curve; publish rates; tracking-error bounds; dispense holds and timeouts; operator stop                                        |
-| MCAP      | Round trip of every topic and value; attachment and metadata; indexed reading (summary, chunk indexes); byte-for-byte reproducibility; plain-language errors for bad files  |
-| Interop   | A Node headless export is verified by the official Python `mcap` reader in CI                                                                                               |
-| Browser   | `npm run e2e`: demo run, real download, real file input, identical report after the round trip, scrubbing                                                                   |
-| Container | CI builds the Docker image and smoke-tests the served page                                                                                                                  |
+| Layer     | How                                                                                                                                                                                                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Validator | One test per error class, each warning in isolation, exact spans in flow and block YAML, did-you-mean suggestions, no cascading errors                                                                                                                                                       |
+| Planner   | S-curve: reaches the target exactly; respects velocity, acceleration and jerk limits (sampled finely); C² continuity; symmetry; a double-integral self-check; the three distance regimes. Coordinated moves: per-axis caps, and acceleration that starts/ends at zero with bounded path jerk |
+| Simulator | Determinism; exact pump bookkeeping; cooling curve; publish rates; tracking-error bounds; dispense holds and timeouts; operator stop                                                                                                                                                         |
+| MCAP      | Round trip of every topic and value; attachment and metadata; indexed reading (summary, chunk indexes); byte-for-byte reproducibility; plain-language errors for bad files                                                                                                                   |
+| Interop   | A Node headless export is verified by the official Python `mcap` reader in CI                                                                                                                                                                                                                |
+| Browser   | `npm run e2e`: demo run, real download, real file input, identical report after the round trip, scrubbing                                                                                                                                                                                    |
+| Container | CI builds the Docker image and smoke-tests the served page                                                                                                                                                                                                                                   |
 
 ## Known limitations
 
