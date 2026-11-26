@@ -1,9 +1,13 @@
 import { AXES, type AxisConfig, type AxisName, type Vec3 } from './machine.ts';
+import { planSCurve, sampleSCurve, type SCurveProfile } from './scurve.ts';
 
 /**
  * Trapezoidal velocity profiles: accelerate at a constant rate, cruise, then
  * decelerate. When the move is too short to reach cruise speed the profile
  * degenerates to a triangle. All functions are closed-form and side-effect free.
+ *
+ * Kept as a reference building block and for tests; coordinated machine moves
+ * use the jerk-limited S-curve below (`planLinearMove`).
  */
 
 export interface TrapezoidProfile {
@@ -73,10 +77,10 @@ export function sampleTrapezoid(p: TrapezoidProfile, t: number): ProfileSample {
 }
 
 /**
- * Coordinated straight-line move of the tool tip. The path gets one trapezoid
- * whose velocity and acceleration limits are the tightest of the per-axis
- * limits projected onto the direction of travel, so every axis follows a
- * (scaled) trapezoid, no axis exceeds its own limits, and all axes arrive together.
+ * Coordinated straight-line move of the tool tip. The path gets one jerk-limited
+ * S-curve whose velocity, acceleration and jerk limits are the tightest of the
+ * per-axis limits projected onto the direction of travel, so every axis follows
+ * a scaled S-curve, no axis exceeds its own limits, and all axes arrive together.
  */
 export interface LinearMovePlan {
   from: Vec3;
@@ -84,7 +88,7 @@ export interface LinearMovePlan {
   /** Unit vector of the direction of travel (zero for a null move). */
   unit: Vec3;
   length: number;
-  profile: TrapezoidProfile;
+  profile: SCurveProfile;
   requestedSpeed: number;
   /** Path speed after applying per-axis velocity limits. */
   effectiveSpeed: number;
@@ -106,7 +110,7 @@ export function planLinearMove(
       to: { ...to },
       unit: { x: 0, y: 0, z: 0 },
       length: 0,
-      profile: planTrapezoid(0, 1, 1),
+      profile: planSCurve(0, 1, 1, 1),
       requestedSpeed,
       effectiveSpeed: requestedSpeed,
       limitingAxis: null,
@@ -115,6 +119,7 @@ export function planLinearMove(
   const unit = { x: d.x / length, y: d.y / length, z: d.z / length };
   let vMax = requestedSpeed;
   let aMax = Infinity;
+  let jMax = Infinity;
   let limitingAxis: AxisName | null = null;
   for (const axis of AXES) {
     const u = Math.abs(unit[axis]);
@@ -125,22 +130,31 @@ export function planLinearMove(
       limitingAxis = axis;
     }
     aMax = Math.min(aMax, axes[axis].maxAccel / u);
+    jMax = Math.min(jMax, axes[axis].maxJerk / u);
   }
   return {
     from: { ...from },
     to: { ...to },
     unit,
     length,
-    profile: planTrapezoid(length, vMax, aMax),
+    profile: planSCurve(length, vMax, aMax, jMax),
     requestedSpeed,
     effectiveSpeed: vMax,
     limitingAxis,
   };
 }
 
-export function sampleLinearMove(plan: LinearMovePlan, t: number): { position: Vec3; velocity: Vec3 } {
-  if (t >= plan.profile.duration) return { position: { ...plan.to }, velocity: { x: 0, y: 0, z: 0 } };
-  const s = sampleTrapezoid(plan.profile, t);
+export interface MoveSample {
+  position: Vec3;
+  velocity: Vec3;
+  acceleration: Vec3;
+}
+
+export function sampleLinearMove(plan: LinearMovePlan, t: number): MoveSample {
+  if (t >= plan.profile.duration) {
+    return { position: { ...plan.to }, velocity: { x: 0, y: 0, z: 0 }, acceleration: { x: 0, y: 0, z: 0 } };
+  }
+  const s = sampleSCurve(plan.profile, t);
   return {
     position: {
       x: plan.from.x + plan.unit.x * s.position,
@@ -148,5 +162,10 @@ export function sampleLinearMove(plan: LinearMovePlan, t: number): { position: V
       z: plan.from.z + plan.unit.z * s.position,
     },
     velocity: { x: plan.unit.x * s.velocity, y: plan.unit.y * s.velocity, z: plan.unit.z * s.velocity },
+    acceleration: {
+      x: plan.unit.x * s.acceleration,
+      y: plan.unit.y * s.acceleration,
+      z: plan.unit.z * s.acceleration,
+    },
   };
 }

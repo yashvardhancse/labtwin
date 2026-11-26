@@ -25,6 +25,8 @@ export interface AxisConfig {
   maxSpeed: number;
   /** Acceleration limit, mm/s². */
   maxAccel: number;
+  /** Jerk limit (rate of change of acceleration), mm/s³. */
+  maxJerk: number;
   /** Position of the axis after homing, mm. */
   home: number;
   /** Speed used while homing, mm/s. */
@@ -45,12 +47,25 @@ export interface MachineConfig {
     /** Largest path speed a protocol may request, mm/s. */
     maxSpeed: number;
   };
-  /** Axis drive model: velocity feed-forward + P position loop + first-order drive lag. */
+  /**
+   * Cascaded axis controller with feed-forward (what a servo drive runs):
+   *   position loop (P) → velocity set-point, plus velocity feed-forward
+   *   velocity loop (PI, anti-windup) → acceleration command, plus accel feed-forward
+   *   current/torque loop modelled as a first-order acceleration lag
+   * The feed-forward terms cancel most of the trajectory; the lag and finite
+   * gains leave a realistic following error during jerk and acceleration.
+   */
   servo: {
     /** Position loop gain, 1/s. */
-    kp: number;
-    /** Drive/motor lag time constant, s. */
-    tauS: number;
+    kpPos: number;
+    /** Velocity loop proportional gain, 1/s. */
+    kpVel: number;
+    /** Velocity loop integral gain, 1/s². */
+    kiVel: number;
+    /** Anti-windup clamp on the velocity-loop integrator, mm. */
+    integralClampMm: number;
+    /** Current-loop (acceleration) lag time constant, s. */
+    tauCurrentS: number;
     /** Encoder noise (1 σ), mm. */
     noiseMm: number;
     /** A move is finished once every axis is this close to its command, mm. */
@@ -107,12 +122,21 @@ export interface MachineConfig {
 
 export const DEFAULT_MACHINE: MachineConfig = {
   axes: {
-    x: { min: 0, max: 120, maxSpeed: 100, maxAccel: 600, home: 0, homingSpeed: 40 },
-    y: { min: 0, max: 80, maxSpeed: 100, maxAccel: 600, home: 0, homingSpeed: 40 },
-    z: { min: 0, max: 40, maxSpeed: 40, maxAccel: 400, home: 40, homingSpeed: 25 },
+    x: { min: 0, max: 120, maxSpeed: 100, maxAccel: 600, maxJerk: 9000, home: 0, homingSpeed: 40 },
+    y: { min: 0, max: 80, maxSpeed: 100, maxAccel: 600, maxJerk: 9000, home: 0, homingSpeed: 40 },
+    z: { min: 0, max: 40, maxSpeed: 40, maxAccel: 400, maxJerk: 6000, home: 40, homingSpeed: 25 },
   },
   move: { defaultSpeed: 20, maxSpeed: 100 },
-  servo: { kp: 120, tauS: 0.008, noiseMm: 0.0015, inPositionMm: 0.002, substeps: 10 },
+  servo: {
+    kpPos: 90,
+    kpVel: 220,
+    kiVel: 1400,
+    integralClampMm: 1.5,
+    tauCurrentS: 0.0045,
+    noiseMm: 0.0015,
+    inPositionMm: 0.003,
+    substeps: 10,
+  },
   pump: {
     capacityNl: 10,
     minVolumeNl: 1,

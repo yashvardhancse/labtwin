@@ -110,4 +110,31 @@ describe('planLinearMove', () => {
     expect(plan.effectiveSpeed).toBe(60);
     expect(plan.profile.peakVelocity).toBe(60);
   });
+
+  it('is jerk-limited: acceleration starts and ends at zero and the jerk is bounded', () => {
+    const from = { x: 0, y: 0, z: 40 };
+    const to = { x: 100, y: 60, z: 10 };
+    const plan = planLinearMove(from, to, 80, axes);
+    const dur = plan.profile.duration;
+    const start = sampleLinearMove(plan, 0).acceleration;
+    expect(Math.hypot(start.x, start.y, start.z)).toBeLessThan(1e-9);
+    const end = sampleLinearMove(plan, dur).acceleration;
+    expect(Math.hypot(end.x, end.y, end.z)).toBeLessThan(1e-6);
+
+    const u = plan.unit;
+    const jPath = Math.min(
+      axes.x.maxJerk / Math.abs(u.x),
+      axes.y.maxJerk / Math.abs(u.y),
+      axes.z.maxJerk / Math.abs(u.z),
+    );
+    const dt = 5e-4;
+    let previous = 0;
+    for (let t = 0; t <= dur; t += dt) {
+      const a = sampleLinearMove(plan, t).acceleration;
+      const pathAccel = a.x * u.x + a.y * u.y + a.z * u.z; // scalar accel along the path
+      const jerk = Math.abs(pathAccel - previous) / dt;
+      if (t > 0) expect(jerk).toBeLessThanOrEqual(jPath * 1.05 + 1);
+      previous = pathAccel;
+    }
+  });
 });

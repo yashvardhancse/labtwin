@@ -16,19 +16,25 @@ export type GoalState = 'idle' | 'executing' | 'succeeded' | 'aborted';
  * PLC/drives (EtherCAT at 1 kHz) and this node would only relay goals and
  * publish states; here both halves are simulated.
  *
- * Servo model per axis (1 kHz): velocity feed-forward + P position loop,
- * followed by a first-order drive lag. That gives realistic following error —
- * tens of µm while accelerating, settling to zero at constant velocity.
+ * Servo model per axis (1 kHz): a cascaded position/velocity controller with
+ * velocity and acceleration feed-forward, a velocity-loop integrator with
+ * anti-windup, and a first-order current loop. The feed-forward cancels most of
+ * the jerk-limited trajectory; the lag and finite gains leave a realistic
+ * following error — tens of µm while accelerating, near zero at constant speed.
  */
 export class GantryDriver {
   readonly name = 'gantry_driver';
   homed = false;
-  /** Commanded position/velocity from the trajectory generator. */
+  /** Commanded position/velocity/acceleration from the trajectory generator. */
   readonly cmd: Vec3;
   readonly cmdVel: Vec3 = { x: 0, y: 0, z: 0 };
+  readonly cmdAcc: Vec3 = { x: 0, y: 0, z: 0 };
   /** True (noise-free) axis position/velocity. */
   readonly act: Vec3;
   readonly actVel: Vec3 = { x: 0, y: 0, z: 0 };
+  /** Current-loop acceleration (lagged) and velocity-loop integrator, per axis. */
+  readonly #actAcc: Vec3 = { x: 0, y: 0, z: 0 };
+  readonly #integ: Vec3 = { x: 0, y: 0, z: 0 };
 
   readonly #m: MachineConfig;
   readonly #rng: Rng;
@@ -135,6 +141,7 @@ export class GantryDriver {
       if (!next) {
         Object.assign(this.cmd, plan.to);
         this.cmdVel.x = this.cmdVel.y = this.cmdVel.z = 0;
+        this.cmdAcc.x = this.cmdAcc.y = this.cmdAcc.z = 0;
         return;
       }
       plan = next;
@@ -143,14 +150,28 @@ export class GantryDriver {
     const sample = sampleLinearMove(plan, this.#segmentTime);
     Object.assign(this.cmd, sample.position);
     Object.assign(this.cmdVel, sample.velocity);
+    Object.assign(this.cmdAcc, sample.acceleration);
   }
 
+  /**
+   * Cascaded controller, one 1 kHz step. Position loop (P) feeds the velocity
+   * loop (PI with anti-windup); velocity and acceleration feed-forward cancel
+   * most of the trajectory, and a first-order current loop keeps acceleration
+   * from changing instantly — the source of the residual following error.
+   */
   #updateServo(h: number): void {
-    const { kp, tauS } = this.#m.servo;
+    const { kpPos, kpVel, kiVel, integralClampMm, tauCurrentS } = this.#m.servo;
     for (const axis of AXES) {
-      const error = this.cmd[axis] - this.act[axis];
-      const velocityTarget = this.cmdVel[axis] + kp * error;
-      this.actVel[axis] += (velocityTarget - this.actVel[axis]) * (h / tauS);
+      const positionError = this.cmd[axis] - this.act[axis];
+      const velocityRef = this.cmdVel[axis] + kpPos * positionError;
+      const velocityError = velocityRef - this.actVel[axis];
+
+      const integ = clamp(this.#integ[axis] + velocityError * h, integralClampMm);
+      this.#integ[axis] = integ;
+
+      const accelCmd = this.cmdAcc[axis] + kpVel * velocityError + kiVel * integ;
+      this.#actAcc[axis] += (accelCmd - this.#actAcc[axis]) * (h / tauCurrentS);
+      this.actVel[axis] += this.#actAcc[axis] * h;
       this.act[axis] += this.actVel[axis] * h;
     }
   }
@@ -161,4 +182,8 @@ export class GantryDriver {
       (axis) => Math.abs(this.cmd[axis] - this.act[axis]) <= tolerance && Math.abs(this.actVel[axis]) < 0.2,
     );
   }
+}
+
+function clamp(value: number, limit: number): number {
+  return value < -limit ? -limit : value > limit ? limit : value;
 }
