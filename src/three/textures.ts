@@ -2,6 +2,55 @@ import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three';
 
 /** Small procedural textures, drawn once on a canvas — no image assets to load. */
 
+/** Vertical studio-gradient background. */
+export function gradientTexture(top: string, bottom: string, size = 512): CanvasTexture {
+  const [el, ctx] = canvas(size);
+  const g = ctx.createLinearGradient(0, 0, 0, size);
+  g.addColorStop(0, top);
+  g.addColorStop(0.62, bottom);
+  g.addColorStop(1, bottom);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new CanvasTexture(el);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+
+/** Soft elliptical contact shadow (dark centre, transparent edge) for grounding. */
+export function blobShadowTexture(size = 256): CanvasTexture {
+  const [el, ctx] = canvas(size);
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(0,0,0,0.55)');
+  g.addColorStop(0.55, 'rgba(0,0,0,0.28)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return new CanvasTexture(el);
+}
+
+/** A short line of engraved text for the instrument nameplate. */
+export function nameplateTexture(text: string, w = 512, h = 128): CanvasTexture {
+  const el = document.createElement('canvas');
+  el.width = w;
+  el.height = h;
+  const ctx = el.getContext('2d');
+  if (!ctx) throw new Error('2D canvas is not available');
+  ctx.fillStyle = '#242930';
+  ctx.fillRect(0, 0, w, h);
+  ctx.font = `600 ${h * 0.3}px "Instrument Sans Variable", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#9aa6b2';
+  ctx.fillText(text, w / 2, h * 0.42);
+  ctx.font = `500 ${h * 0.15}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle = '#5b6672';
+  ctx.fillText('nanolitre sample-prep robot', w / 2, h * 0.72);
+  const texture = new CanvasTexture(el);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
 function canvas(size: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const el = document.createElement('canvas');
   el.width = el.height = size;
