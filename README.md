@@ -26,13 +26,13 @@ Everything runs client-side: no backend, nothing leaves the browser.
 
 ## What it demonstrates
 
-| Area                                                      | Where to look                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ROS 2-style node and topic design**                     | Simulated nodes (`gantry_driver`, `pump_driver`, `stage_controller`, `protocol_executor`) talk over typed topics with action-style goals for motion and service calls for the pump and stage, all in simulation time. See [`src/core/nodes`](src/core/nodes) and the in-app page _How it maps to ROS 2_.                                                                                                                                                                        |
-| **Recording and replaying runs with MCAP and a 3D model** | Every run is recorded. _Download recording (.mcap)_ writes JSON channels with JSON Schemas, the protocol as an attachment and run metadata. _Open recording_ replays it with a scrubber. The file also carries `/tf`, `/scene` and `/log` (validated against Foxglove's official schemas), so Foxglove's 3D panel can show the moving gantry. Checked by a round-trip test, an indexed-reader test, the official **Python** `mcap` reader in CI, and a browser end-to-end test. |
-| **Tools that let scientists write and check protocols**   | A YAML editor with live validation: unknown steps and fields (with "did you mean"), types and ranges, axis, speed, volume and temperature limits, ordering ("home before moving", "stage cold before dispensing") and physical warnings (fast approach, off-grid dispense). Every message says what is wrong and how to fix it, and points at the exact token.                                                                                                                  |
-| **Reproducible builds, containers and automated tests**   | A pinned toolchain (`.nvmrc`, `package-lock.json`, `npm ci`) and a multi-stage `Dockerfile` (lint, test, build, then an unprivileged nginx). CI runs lint, 85 unit tests, the build, an MCAP interop check against Python and a Docker smoke test. The simulator is bit-for-bit deterministic for a given seed.                                                                                                                                                                 |
-| **Code review and documentation**                         | Strict TypeScript, type-aware ESLint with an enforced architecture boundary (`src/core` cannot import React, three.js or DOM APIs), small commits, this README and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) with the design decisions and trade-offs.                                                                                                                                                                                                                     |
+| Area                                                      | Where to look                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ROS 2 nodes and topic design**                          | A real ROS 2 (`rclpy`) package in [`ros2/`](ros2/) with `labtwin_msgs` interfaces (messages, a `MoveTo` action, services) and a node publishing the topics. In the browser, simulated nodes (`gantry_driver`, `pump_driver`, `stage_controller`, `protocol_executor`) talk over the same typed topics with action-style goals and service calls. Both sides share one machine model, and a Python-written recording replays in the web twin (below). See [`src/core/nodes`](src/core/nodes), [`ros2/`](ros2/) and the in-app page _How it maps to ROS 2_. |
+| **Recording and replaying runs with MCAP and a 3D model** | Every run is recorded. _Download recording (.mcap)_ writes JSON channels with JSON Schemas, the protocol as an attachment and run metadata. _Open recording_ replays it with a scrubber. The file also carries `/tf`, `/scene` and `/log` (validated against Foxglove's official schemas), so Foxglove's 3D panel can show the moving gantry. Checked by a round-trip test, an indexed-reader test, the official **Python** `mcap` reader in CI, and a browser end-to-end test.                                                                           |
+| **Tools that let scientists write and check protocols**   | A YAML editor with live validation: unknown steps and fields (with "did you mean"), types and ranges, axis, speed, volume and temperature limits, ordering ("home before moving", "stage cold before dispensing") and physical warnings (fast approach, off-grid dispense). Every message says what is wrong and how to fix it, and points at the exact token.                                                                                                                                                                                            |
+| **Reproducible builds, containers and automated tests**   | A pinned toolchain (`.nvmrc`, `package-lock.json`, `npm ci`) and a multi-stage `Dockerfile` (lint, test, build, then an unprivileged nginx). CI runs lint, 85 web unit tests, the build, an MCAP interop check, a Docker smoke test, and a separate ROS 2 workflow that `colcon build`s the `ros2/` packages on the official `ros:jazzy` image and runs the node smoke test plus 17 Python tests. Both simulators are bit-for-bit deterministic for a given seed.                                                                                         |
+| **Code review and documentation**                         | Strict TypeScript with a type-aware ESLint boundary (`src/core` cannot import React, three.js or DOM APIs) and a ruff-linted, pytest-tested Python package; small, reviewable commits; this README, [`ros2/README.md`](ros2/README.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) with the design decisions and trade-offs.                                                                                                                                                                                                                       |
 
 ## Try it in 60 seconds
 
@@ -74,8 +74,37 @@ src/
     mcap.ts  foxglove.ts  geometry.ts           MCAP I/O, Foxglove adapter, URDF-like machine model
   three/    MachineView: three.js scene generated from core/geometry.ts
   ui/       React: editor (CodeMirror 6), transport, SVG charts, report, ROS 2 page
+ros2/       real ROS 2 (rclpy) package: labtwin_msgs + a node publishing the topics
 scripts/    headless export, Python MCAP verifier, screenshots, browser e2e
 ```
+
+## Real ROS 2 package (`ros2/`)
+
+The role's stack is ROS 2 in Python and C++, so the repo includes a real ROS 2
+package, not just a browser demo. [`ros2/`](ros2/) has `labtwin_msgs` (the
+`AxisState`/`PumpState`/… messages, a `MoveTo` action and `Aspirate`/`Dispense`/
+`SetStageTarget` services) and `labtwin_sim`, an `rclpy` node that runs the same
+deterministic machine model and publishes the same topics.
+
+Because both sides share the topic names and JSON Schemas, **a recording written
+by the Python/ROS 2 side opens and replays in the browser twin** — the 3D
+machine, charts and report follow the Python-recorded state:
+
+![A run recorded by the Python ROS 2 side, replaying in the browser twin](docs/screenshots/ros2-interop.png)
+
+```bash
+# Pure-Python core (no ROS 2 needed): write a recording the web app can open
+cd ros2/src/labtwin_sim && pip install mcap pyyaml && python -m labtwin_sim.run standard out.mcap
+pytest -q                                   # S-curve, determinism, MCAP round-trip
+
+# As ROS 2 (Jazzy)
+cd ros2 && colcon build && source install/setup.bash
+ros2 launch labtwin_sim bringup.launch.py   # publishes /axis/* /pump/state /stage/temperature …
+```
+
+CI builds the workspace on the official `ros:jazzy` image and runs the node
+smoke test. See [`ros2/README.md`](ros2/README.md) for the full interface list
+and the interop details.
 
 ## Protocol reference
 
@@ -173,14 +202,15 @@ The build stage pins Node, installs the exact lockfile with `npm ci`, and runs l
 
 ## Roadmap
 
-These are next steps; none of them exist yet.
+The ROS 2 package in [`ros2/`](ros2/) already exists; these are the next steps.
 
-1. **Real ROS 2 nodes:** rclpy nodes (and rclcpp for the drive bridge) publishing these same topics, built and tested in containers.
-2. **rosbag2 interop:** replay bags recorded with `ros2 bag record -s mcap`, which needs a CDR decoder in the browser.
-3. **Foxglove bridge:** connect the web view to a live robot through the `foxglove_bridge` WebSocket.
-4. **URDF export:** generate URDF/xacro from the machine description in `src/core/geometry.ts`.
-5. **Camera node:** publish the tip camera as `sensor_msgs/CompressedImage`.
-6. **Motion:** input shaping to cancel residual vibration, and fault injection such as a stalled axis or a pump occlusion.
+1. **Split into one node per driver:** promote `labtwin_sim`'s single node into `gantry_driver` (a `MoveTo` action server), `pump_driver`/`stage_controller` (service servers) and a `protocol_executor` client, matching the diagram.
+2. **C++ drive bridge:** an `rclcpp` node modelling the CODESYS/EtherCAT boundary — the trajectory and servo run on the PLC at the fieldbus cycle; ROS 2 commands it and reads state.
+3. **rosbag2 interop:** replay native `ros2 bag record -s mcap` (CDR-encoded) in the browser, which needs a CDR decoder.
+4. **Foxglove bridge:** connect the web view to a live robot through the `foxglove_bridge` WebSocket.
+5. **URDF export:** generate URDF/xacro from the machine description in `src/core/geometry.ts`.
+6. **Camera node:** publish the tip camera as `sensor_msgs/CompressedImage`.
+7. **Motion:** input shaping to cancel residual vibration, and fault injection such as a stalled axis or a pump occlusion.
 
 ## License
 

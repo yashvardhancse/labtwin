@@ -89,6 +89,12 @@ The three Foxglove JSON schemas used are vendored (about 25 kB instead of the pa
 - **Custom SVG charts instead of a chart library:** four small charts do not justify the dependency. Per-pixel min/max decimation keeps narrow tracking-error spikes visible at any width; there is a shared crosshair, and the not-yet-played part is faded during replay. Axis colours come from a categorical palette checked for colour-blind separation, and every series also has a text label.
 - **Hash routing:** `#/` and `#/ros2` work on any static host with no rewrite rules.
 
+### 9. A real ROS 2 package that shares the interfaces (`ros2/`)
+
+The production stack is ROS 2 in Python and C++, so the repo carries a real ROS 2 package, not only a browser demo. `ros2/src/labtwin_msgs` defines the interfaces (messages, the `MoveTo` action, the pump/stage services); `ros2/src/labtwin_sim` is an `rclpy` node that runs a Python port of the same simulation core and publishes the same topics. The two sides are kept honest by sharing the topic names and JSON Schemas (`labtwin_sim/topics.py` mirrors `src/core/topics.ts`).
+
+The deliberate design choice is **interoperable recordings**: the Python side writes JSON-encoded MCAP without chunk compression, so a file it produces opens in the browser twin's _Open recording_ and drives the 3D view, exactly like a file the web app exported. This is verified end to end (`scripts/ros2-interop.mjs`) and keeps the message design from drifting between the two implementations. A native CDR `ros2 bag` needs a browser-side CDR decoder, which is the one remaining interop step.
+
 ## Testing strategy
 
 | Layer     | How                                                                                                                                                                                                                                                                                          |

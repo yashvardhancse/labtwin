@@ -348,15 +348,24 @@ export function ArchitecturePage() {
 
         <section>
           <h2>Roadmap</h2>
-          <p className="muted">Next steps. None of these exist yet.</p>
+          <p className="muted">
+            A real ROS 2 (rclpy) package already lives in <code>ros2/</code> and publishes these topics; a
+            recording it writes replays in this web app. These are the next steps.
+          </p>
           <ol className="roadmap">
             <li>
-              <strong>Real ROS 2 nodes.</strong> rclpy nodes (rclcpp for the drive bridge) publishing these
-              same topics, built and tested in containers.
+              <strong>One node per driver.</strong> Split the simulation node into a{' '}
+              <code>gantry_driver</code> action server, <code>pump_driver</code> /{' '}
+              <code>stage_controller</code> service servers and a <code>protocol_executor</code> client,
+              matching the diagram above.
             </li>
             <li>
-              <strong>rosbag2 interop.</strong> Replay bags recorded with <code>ros2 bag record -s mcap</code>{' '}
-              here, which needs a CDR decoder in the browser.
+              <strong>C++ drive bridge.</strong> An rclcpp node modelling the CODESYS/EtherCAT boundary: the
+              trajectory and servo run on the PLC at the fieldbus cycle, commanded over ROS 2.
+            </li>
+            <li>
+              <strong>rosbag2 interop.</strong> Replay native <code>ros2 bag record -s mcap</code>{' '}
+              (CDR-encoded) here, which needs a CDR decoder in the browser.
             </li>
             <li>
               <strong>Foxglove bridge.</strong> Connect the web view to a live robot through the

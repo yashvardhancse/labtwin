@@ -1,0 +1,64 @@
+name: ROS 2
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ros2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sim-core:
+    name: Python core (lint, tests, MCAP interop)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+      - run: pip install -r scripts/requirements.txt pyyaml ruff pytest
+      - name: Lint
+        run: ruff check ros2
+      - name: Unit tests
+        working-directory: ros2/src/labtwin_sim
+        run: pytest -q
+      - name: Interop — the Python side writes a LabTwin MCAP the official reader validates
+        run: |
+          mkdir -p .artifacts
+          ( cd ros2/src/labtwin_sim && python -m labtwin_sim.run standard "$GITHUB_WORKSPACE/.artifacts/py.mcap" )
+          python scripts/verify_mcap.py .artifacts/py.mcap
+
+  colcon:
+    name: colcon build & test (ros:jazzy)
+    runs-on: ubuntu-latest
+    container: ros:jazzy-ros-base
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build and Python dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3-colcon-common-extensions \
+            ros-jazzy-rosidl-default-generators
+          python3 -m pip install --break-system-packages mcap pyyaml pytest
+      - name: Build the workspace
+        working-directory: ros2
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build --event-handlers console_direct+
+      - name: Test (builds the interfaces, runs the rclpy node smoke test)
+        working-directory: ros2
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          colcon test --packages-select labtwin_sim --event-handlers console_direct+
+          colcon test-result --verbose
