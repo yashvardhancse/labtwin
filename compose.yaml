@@ -1,0 +1,8 @@
+# docker compose up --build   →   http://localhost:8080
+services:
+  labtwin:
+    build: .
+    image: labtwin:local
+    ports:
+      - '8080:8080'
+    restart: unless-stopped
