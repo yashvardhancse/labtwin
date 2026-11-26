@@ -15,13 +15,15 @@ export const DEFAULT_EXAMPLE: ExampleProtocol = {
   source: `name: Grid prep – standard
 steps:
   - home: {}
-  - cool_stage: { target_c: -170, wait: false }  # cools while we load sample
-  - move: { x: 100, y: 60, z: 20, speed: 60 }     # above the sample vial
-  - move: { z: 4, speed: 15 }                      # tip into the sample
+  # Cool in the background while the head loads sample.
+  - cool_stage: { target_c: -170, wait: false }
+  - move: { x: 100, y: 60, z: 20, speed: 60 }
+  - move: { z: 4, speed: 15 }
   - aspirate: { volume_nl: 4 }
   - move: { z: 30, speed: 30 }
-  - move: { x: 40, y: 25, z: 8, speed: 60 }        # above grid G1
-  - move: { z: 2, speed: 5 }                       # slow final approach
+  # Over grid G1, then a slow final approach.
+  - move: { x: 40, y: 25, z: 8, speed: 60 }
+  - move: { z: 2, speed: 5 }
   - dispense: { volume_nl: 3 }
   - wait: { ms: 500 }
   - move: { z: 30 }
@@ -37,24 +39,29 @@ export const EXAMPLES: readonly ExampleProtocol[] = [
     source: `name: Four-grid series
 steps:
   - home: {}
-  - cool_stage: { target_c: -175 }                 # waits until the stage is cold
+  # Blocking: waits here until the stage is cold.
+  - cool_stage: { target_c: -175 }
   - move: { x: 100, y: 60, z: 20, speed: 80 }
   - move: { z: 4, speed: 15 }
   - aspirate: { volume_nl: 9, rate_nl_s: 4 }
   - move: { z: 20, speed: 30 }
-  - move: { x: 40, y: 25, z: 6, speed: 80 }        # G1
+  # G1
+  - move: { x: 40, y: 25, z: 6, speed: 80 }
   - move: { z: 2, speed: 5 }
   - dispense: { volume_nl: 2 }
   - move: { z: 6, speed: 20 }
-  - move: { x: 50, speed: 40 }                     # G2
+  # G2
+  - move: { x: 50, speed: 40 }
   - move: { z: 2, speed: 5 }
   - dispense: { volume_nl: 2 }
   - move: { z: 6, speed: 20 }
-  - move: { x: 60, speed: 40 }                     # G3
+  # G3
+  - move: { x: 60, speed: 40 }
   - move: { z: 2, speed: 5 }
   - dispense: { volume_nl: 2 }
   - move: { z: 6, speed: 20 }
-  - move: { x: 70, speed: 40 }                     # G4
+  # G4
+  - move: { x: 70, speed: 40 }
   - move: { z: 2, speed: 5 }
   - dispense: { volume_nl: 2 }
   - move: { z: 30, speed: 30 }
