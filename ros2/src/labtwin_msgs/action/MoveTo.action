@@ -1,0 +1,10 @@
+# Move the tool tip in a coordinated straight line.
+float64[3] target_mm    # X, Y, Z target; NaN leaves that axis where it is
+float64 speed_mm_s      # requested path speed
+---
+# Result
+bool success
+string message
+---
+# Feedback
+float64[3] position_mm  # current tip position while moving

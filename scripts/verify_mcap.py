@@ -69,8 +69,10 @@ def verify(path: str) -> list[str]:
         for topic in CORE_TOPICS:
             if topic not in topics:
                 problems.append(f"missing core topic {topic}")
+        # The Foxglove topics are optional (the web export adds them; the Python
+        # core writes only the control topics). If present, the schema must match.
         for topic, schema_name in FOXGLOVE_TOPICS.items():
-            if topics.get(topic) != schema_name:
+            if topic in topics and topics.get(topic) != schema_name:
                 problems.append(f"{topic}: expected schema {schema_name}, found {topics.get(topic)!r}")
 
         counts: Counter[str] = Counter()

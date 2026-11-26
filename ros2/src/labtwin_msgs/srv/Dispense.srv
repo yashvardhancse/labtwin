@@ -1,0 +1,6 @@
+# Dispense sample onto the grid under the tip.
+float64 volume_nl
+float64 rate_nl_s
+---
+bool accepted
+string reason

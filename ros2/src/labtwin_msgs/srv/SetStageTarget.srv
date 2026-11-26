@@ -1,0 +1,6 @@
+# Set the cryo-stage temperature set-point.
+float64 target_c
+bool wait        # block until the stage reaches the target
+---
+bool accepted
+string reason

@@ -1,0 +1,9 @@
+# Lint config for the ROS 2 Python package (separate from the web app's ESLint).
+line-length = 120
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+  "B008", # function calls in argument defaults (rclpy/launch patterns)
+]
