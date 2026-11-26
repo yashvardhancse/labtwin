@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  mcap-interop:
+    name: MCAP interop (official Python reader)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The same TypeScript core as the browser app, run directly by Node (type stripping).
+      - run: node scripts/export-sample.ts series .artifacts/series.mcap
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/verify_mcap.py .artifacts/series.mcap
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --tag labtwin:ci .
+      - name: Smoke test the container
+        run: |
+          docker run --detach --name labtwin --publish 8080:8080 labtwin:ci
+          for i in $(seq 1 30); do
+            curl --silent --fail http://localhost:8080/ > /dev/null && break
+            sleep 1
+          done
+          curl --silent --fail http://localhost:8080/ | grep -q '<div id="root">'
+          docker rm --force labtwin
