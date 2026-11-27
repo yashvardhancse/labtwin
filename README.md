@@ -52,7 +52,7 @@ Everything runs client-side: no backend, nothing leaves the browser.
 | **ROS 2 nodes and topic design**                          | A real ROS 2 (`rclpy`) package in [`ros2/`](ros2/) with `labtwin_msgs` interfaces (messages, a `MoveTo` action, services) and a node publishing the topics. In the browser, simulated nodes (`gantry_driver`, `pump_driver`, `stage_controller`, `protocol_executor`) talk over the same typed topics with action-style goals and service calls. Both sides share one machine model, and a Python-written recording replays in the web twin (below). See [`src/core/nodes`](src/core/nodes), [`ros2/`](ros2/) and the in-app page _How it maps to ROS 2_. |
 | **Recording and replaying runs with MCAP and a 3D model** | Every run is recorded. _Download recording (.mcap)_ writes JSON channels with JSON Schemas, the protocol as an attachment and run metadata. _Open recording_ replays it with a scrubber. The file also carries `/tf`, `/scene` and `/log` (validated against Foxglove's official schemas), so Foxglove's 3D panel can show the moving gantry. Checked by a round-trip test, an indexed-reader test, the official **Python** `mcap` reader in CI, and a browser end-to-end test.                                                                           |
 | **Tools that let scientists write and check protocols**   | A YAML editor with live validation: unknown steps and fields (with "did you mean"), types and ranges, axis, speed, volume and temperature limits, ordering ("home before moving", "stage cold before dispensing") and physical warnings (fast approach, off-grid dispense). Every message says what is wrong and how to fix it, and points at the exact token.                                                                                                                                                                                            |
-| **Reproducible builds, containers and automated tests**   | A pinned toolchain (`.nvmrc`, `package-lock.json`, `npm ci`) and a multi-stage `Dockerfile` (lint, test, build, then an unprivileged nginx). CI runs lint, 85 web unit tests, the build, an MCAP interop check, a Docker smoke test, and a separate ROS 2 workflow that `colcon build`s the `ros2/` packages on the official `ros:jazzy` image and runs the node smoke test plus 17 Python tests. Both simulators are bit-for-bit deterministic for a given seed.                                                                                         |
+| **Reproducible builds, containers and automated tests**   | A pinned toolchain (`.nvmrc`, `package-lock.json`, `npm ci`) and a multi-stage `Dockerfile` (lint, test, build, then an unprivileged nginx). CI runs lint, 85 web unit tests, the build, an MCAP interop check, a Docker smoke test, plus a ROS 2 workflow that lints and runs the 17 Python tests and verifies the Python-to-web MCAP interop (the ROS 2 workspace builds with `colcon`; see `ros2/`). Both simulators are bit-for-bit deterministic for a given seed.                                                                                   |
 | **Code review and documentation**                         | Strict TypeScript with a type-aware ESLint boundary (`src/core` cannot import React, three.js or DOM APIs) and a ruff-linted, pytest-tested Python package; small, reviewable commits; this README, [`ros2/README.md`](ros2/README.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) with the design decisions and trade-offs.                                                                                                                                                                                                                       |
 
 ## Try it in 60 seconds
@@ -123,8 +123,8 @@ cd ros2 && colcon build && source install/setup.bash
 ros2 launch labtwin_sim bringup.launch.py   # publishes /axis/* /pump/state /stage/temperature …
 ```
 
-CI builds the workspace on the official `ros:jazzy` image and runs the node
-smoke test. See [`ros2/README.md`](ros2/README.md) for the full interface list
+CI lints the Python package, runs its 17 tests and checks the MCAP interop on
+every push; `colcon build` is a local/dev step. See [`ros2/README.md`](ros2/README.md) for the full interface list
 and the interop details.
 
 ## Protocol reference
@@ -210,9 +210,9 @@ The build stage pins Node, installs the exact lockfile with `npm ci`, and runs l
 
 ## Deploy
 
-**GitHub Pages:** push to `main`, then in **Settings → Pages** choose **Source: GitHub Actions**. `.github/workflows/deploy.yml` tests, builds and publishes `dist/`. The site uses relative asset paths (`base: './'`) and hash routing, so it works under any repository path.
+The live demo runs on **Cloudflare Pages**: import the repository (framework preset _Vite_, build command `npm run build`, output `dist`, `NODE_VERSION=22`), or build locally and drag `dist/` in. It also works on **Vercel** with the same defaults, and on any static host — the site uses relative asset paths (`base: './'`) and hash routing, so it needs no rewrite rules and works under any path.
 
-**Vercel or Cloudflare Pages:** import the repository. The defaults (build command `npm run build`, output directory `dist`) work without any configuration.
+**GitHub Pages** is available too as an optional path: enable **Settings → Pages → Source: GitHub Actions**, then run the `deploy.yml` workflow from the Actions tab (it is manual-only so it never fails a push for repos that use another host).
 
 ## Limitations
 

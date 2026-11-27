@@ -1,8 +1,9 @@
 name: Deploy to GitHub Pages
 
+# The live demo is deployed to Cloudflare Pages. This GitHub Pages workflow is
+# optional and runs only on demand: enable Pages (Settings → Pages → Source:
+# GitHub Actions), then trigger it from the Actions tab.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

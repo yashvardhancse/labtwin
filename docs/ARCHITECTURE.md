@@ -4,7 +4,7 @@ This document explains how LabTwin is put together and why: the decisions, the a
 
 ## Goals and constraints
 
-- **Static hosting only.** It has to run from GitHub Pages, so there is no backend: validation, simulation and MCAP I/O all run in the browser.
+- **Static hosting only.** It has to run from a static host (it is deployed on Cloudflare Pages; GitHub Pages and Vercel work too), so there is no backend: validation, simulation and MCAP I/O all run in the browser.
 - **Reproducible.** The same protocol and seed must give the same run, and the same recording, on any machine.
 - **Honest to the domain.** The structure should mirror a ROS 2 system (nodes, topics, actions, services, rosbag2-style recordings) so the design transfers to the real thing.
 - **Reviewable.** Small, typed and tested modules, with a hard boundary between logic and presentation.
@@ -103,7 +103,8 @@ The deliberate design choice is **interoperable recordings**: the Python side wr
 | Planner   | S-curve: reaches the target exactly; respects velocity, acceleration and jerk limits (sampled finely); C² continuity; symmetry; a double-integral self-check; the three distance regimes. Coordinated moves: per-axis caps, and acceleration that starts/ends at zero with bounded path jerk |
 | Simulator | Determinism; exact pump bookkeeping; cooling curve; publish rates; tracking-error bounds; dispense holds and timeouts; operator stop                                                                                                                                                         |
 | MCAP      | Round trip of every topic and value; attachment and metadata; indexed reading (summary, chunk indexes); byte-for-byte reproducibility; plain-language errors for bad files                                                                                                                   |
-| Interop   | A Node headless export is verified by the official Python `mcap` reader in CI                                                                                                                                                                                                                |
+| Interop   | A Node headless export is verified by the official Python `mcap` reader in CI; a recording written by the ROS 2 Python package replays in the browser twin (`scripts/ros2-interop.mjs`)                                                                                                      |
+| ROS 2     | ruff plus 17 pytest tests (S-curve, determinism, MCAP round trip) run in CI; the `rclpy` node smoke test runs where ROS 2 is installed, and `colcon build` is a local/dev step                                                                                                               |
 | Browser   | `npm run e2e`: demo run, real download, real file input, identical report after the round trip, scrubbing                                                                                                                                                                                    |
 | Container | CI builds the Docker image and smoke-tests the served page                                                                                                                                                                                                                                   |
 

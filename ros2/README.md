@@ -48,9 +48,10 @@ ros2 topic hz /stage/temperature
 ros2 bag record -s mcap -o run /axis/x/state /pump/state /stage/temperature /protocol/step /diagnostics
 ```
 
-CI (`.github/workflows/ros2.yml`) builds this workspace on the official
-`ros:jazzy` image and runs the node smoke test, and separately lints and tests
-the pure-Python core and checks the MCAP interop.
+CI (`.github/workflows/ros2.yml`) lints the Python package, runs its 17 tests
+and verifies the MCAP interop on every push. The `colcon build` above is a
+local/dev step, and the `rclpy` node smoke test (`test/test_ros_node.py`) runs
+where ROS 2 is installed.
 
 ## How the two sides interoperate
 
