@@ -1,8 +1,29 @@
-# LabTwin
+<h1 align="center">LabTwin</h1>
 
-**A browser digital twin of a nanolitre sample-prep robot.** Write a protocol, get it checked line by line, watch a deterministic simulation of the 3-axis machine in 3D, and record or replay every run as an MCAP file that also opens in Foxglove.
+<p align="center">
+  <b>A browser digital twin of a nanolitre sample-prep robot.</b><br/>
+  Write a protocol, get it checked line by line, watch a deterministic 3-axis simulation in 3D,
+  and record or replay every run as an MCAP file that opens in Foxglove —<br/>
+  with a <b>real ROS 2 (rclpy) package</b> that shares the same interfaces.
+</p>
 
-**Live demo:** `https://<your-github-username>.github.io/labtwin/` <!-- replace after the first deploy -->
+<p align="center">
+  <a href="https://labtwin.pages.dev"><img alt="Live demo" src="https://img.shields.io/badge/▶_live_demo-labtwin.pages.dev-0a76a8"></a>
+  <a href="https://github.com/yashvardhancse/labtwin/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yashvardhancse/labtwin/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/yashvardhancse/labtwin/actions/workflows/ros2.yml"><img alt="ROS 2" src="https://github.com/yashvardhancse/labtwin/actions/workflows/ros2.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
+
+<p align="center">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-18-20232a?logo=react">
+  <img alt="three.js" src="https://img.shields.io/badge/three.js-r187-000000?logo=threedotjs&logoColor=white">
+  <img alt="ROS 2" src="https://img.shields.io/badge/ROS_2-rclpy-22314e?logo=ros&logoColor=white">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.13-3776ab?logo=python&logoColor=white">
+  <img alt="MCAP" src="https://img.shields.io/badge/MCAP-record_%26_replay-7c4dff">
+</p>
+
+**▶ Live demo: https://labtwin.pages.dev** &nbsp;·&nbsp; [How it maps to ROS 2](https://labtwin.pages.dev/#/ros2) &nbsp;·&nbsp; [Architecture](docs/ARCHITECTURE.md)
 
 ![LabTwin: protocol editor, 3D machine with tip camera, run controls, telemetry and run report](docs/screenshots/desktop.png)
 
